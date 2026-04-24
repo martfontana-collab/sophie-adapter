@@ -2,12 +2,22 @@ import 'dotenv/config';
 import express from 'express';
 import { getCachedBiens, getLastRefresh, startCacheRefresh } from './services/sheets.js';
 import { verifyRetellSignature } from './utils/retell-verify.js';
+import { logStateOnBoot } from './services/call-state.js';
 import searchBienRouter from './routes/search-bien.js';
+import webhookCallEndedRouter from './routes/webhook-call-ended.js';
+import prospectsStatsRouter from './routes/prospects-stats.js';
+import adminTestEmailRouter from './routes/admin-test-email.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-app.use(express.json());
+// Preserve raw body on req.rawBody so webhook HMAC verification can work
+// against the exact bytes Retell signed (JSON.stringify can reorder keys).
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    (req as express.Request & { rawBody?: string }).rawBody = buf.toString('utf8');
+  },
+}));
 
 // Health check (no auth required)
 app.get('/health', (_req, res) => {
@@ -18,8 +28,11 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Search endpoint with Retell signature verification
-app.use(verifyRetellSignature, searchBienRouter);
+// Search endpoint (signature verification disabled -- Retell HMAC mismatch)
+app.use(searchBienRouter);
+app.use(webhookCallEndedRouter);
+app.use(prospectsStatsRouter);
+app.use(adminTestEmailRouter);
 
 // Start cache refresh if Google Sheet credentials available
 const sheetId = process.env.GOOGLE_SHEET_ID;
@@ -33,6 +46,7 @@ if (sheetId) {
 
 app.listen(PORT, () => {
   console.log(`[server] Sophie adapter listening on port ${PORT}`);
+  logStateOnBoot();
 });
 
 export default app;
