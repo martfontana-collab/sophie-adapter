@@ -97,6 +97,63 @@ describe('searchBiens', () => {
     // Restore original test data
     loadTestData(TEST_BIENS);
   });
+
+  // --- Bug fix 2026-04-24 : adresse param + filtre statut sur requêtes vagues ---
+
+  it('returns 0 when adresse param is provided (no sheet column)', () => {
+    const result = searchBiens({ adresse: 'rue Charles Goujon', secteur: 'Saint-Raphael' });
+    expect(result.result_count).toBe(0);
+  });
+
+  it('returns the bien with statut intact when matched by reference (Sous compromis)', () => {
+    const result = searchBiens({ reference: 'EM-2026-003' });
+    expect(result.result_count).toBe(1);
+    expect(result.biens[0].reference).toBe('EM-2026-003');
+    expect(result.biens[0].statut).toBe('Sous compromis');
+  });
+
+  it('returns the bien with statut intact when matched by reference (Vendu)', () => {
+    const result = searchBiens({ reference: 'EM-2026-005' });
+    expect(result.result_count).toBe(1);
+    expect(result.biens[0].reference).toBe('EM-2026-005');
+    expect(result.biens[0].statut).toBe('Vendu');
+  });
+
+  it('vague query on Frejus filters out Sous compromis EM-2026-003', () => {
+    const result = searchBiens({ secteur: 'Frejus' });
+    expect(result.result_count).toBe(0);
+    const refs = result.biens.map(b => b.reference);
+    expect(refs).not.toContain('EM-2026-003');
+  });
+
+  it('vague query on Saint-Raphael filters out Vendu EM-2026-005', () => {
+    const result = searchBiens({ secteur: 'Saint-Raphael' });
+    expect(result.result_count).toBe(0);
+    const refs = result.biens.map(b => b.reference);
+    expect(refs).not.toContain('EM-2026-005');
+  });
+
+  it('vague query on Boulouris still returns the 2 Disponible biens', () => {
+    const result = searchBiens({ secteur: 'Boulouris' });
+    expect(result.result_count).toBe(2);
+    const refs = result.biens.map(b => b.reference).sort();
+    expect(refs).toEqual(['EM-2026-001', 'EM-2026-004']);
+    for (const b of result.biens) {
+      expect(b.statut).toBe('Disponible');
+    }
+  });
+
+  it('vague query with type "maison" + secteur Frejus returns 0 (Sous compromis filtered)', () => {
+    const result = searchBiens({ secteur: 'Frejus', type_bien: 'maison' });
+    expect(result.result_count).toBe(0);
+  });
+
+  it('reproduces call_0ced bug scenario: Cas B exploratoire returns 0 instead of EM-2026-005', () => {
+    const result = searchBiens({ secteur: 'Saint-Raphael', type_bien: 'maison', prix_approx: 850000 });
+    expect(result.result_count).toBe(0);
+    const refs = result.biens.map(b => b.reference);
+    expect(refs).not.toContain('EM-2026-005');
+  });
 });
 
 describe('formatResponse', () => {

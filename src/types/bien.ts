@@ -33,6 +33,7 @@ export interface SearchRequest {
     type_bien?: string;
     prix_approx?: number;
     reference?: string;
+    adresse?: string;      // Specific street/address — forces result_count=0 (no sheet column)
   };
   call?: Record<string, unknown>;  // Retell call context (ignored)
 }
